@@ -1,304 +1,83 @@
 # 13. Provider Adapters
 
 ## Purpose
-This document explains how each AI provider is called from `services/gemini.js`.
+
+This document explains how the live backend sends requests to each provider-backed model adapter.
 
 ## Relevant Files
+
 - `services/gemini.js`
 
-## Provider Functions
-The source file contains request functions for:
+## Adapter Inventory
 
-- `runOpenRouterRequest`
-- `runGrokRequest`
-- `runHuggingFaceRequest`
-- `runTogetherRequest`
-- `runGroqDirectRequest`
-- `runGeminiRequest`
+| Adapter function | Provider |
+| --- | --- |
+| `runOpenRouterRequest()` | OpenRouter |
+| `runGrokRequest()` | xAI/Grok direct |
+| `runHuggingFaceRequest()` | Hugging Face router |
+| `runTogetherRequest()` | Together AI |
+| `runGroqDirectRequest()` | Groq |
+| `runGeminiRequest()` | Google Gemini direct |
 
-## Common Contract
-Each provider adapter returns a common internal shape:
+## Shared Mechanics
+
+Most adapters share these steps:
+
+1. build system and user messages
+2. attach image data when available
+3. set `temperature: 0.6`
+4. set operation-specific max tokens
+5. parse returned content
+6. parse provider usage if available
+
+## OpenAI-Compatible Adapters
+
+OpenRouter, Grok, Hugging Face, Together, and Groq all use the same OpenAI-like message format:
 
 ```json
-{
-  "content": "assistant output",
-  "usage": {
-    "promptTokens": 10,
-    "completionTokens": 20,
-    "totalTokens": 30
-  }
-}
+[
+  { "role": "system", "content": "system prompt" },
+  { "role": "user", "content": "prompt text or mixed text/image parts" }
+]
 ```
 
-## Adapter Pattern
-```mermaid
-flowchart TD
-    Exec["executeModelRequest(model, ...)"] --> Provider{"model.provider"}
-    Provider -- openrouter --> O["runOpenRouterRequest"]
-    Provider -- grok --> X["runGrokRequest"]
-    Provider -- groq --> G["runGroqDirectRequest"]
-    Provider -- together --> T["runTogetherRequest"]
-    Provider -- huggingface --> H["runHuggingFaceRequest"]
-    Provider -- gemini --> M["runGeminiRequest"]
-```
-
-## OpenAI-Like Providers
-OpenRouter, Grok, Groq, Together, and HuggingFace are treated similarly:
-
-- `fetchJson(...)`
-- send chat-completions style payload
-- normalize `choices[0].message.content`
-- normalize usage fields
+Image attachments are passed as `image_url` parts when `attachmentPayload.imageDataUrl` exists.
 
 ## Gemini Direct
-Gemini uses:
 
-- `GoogleGenerativeAI`
-- `getGenerativeModel`
-- inline image data when available
-- Gemini-specific usage metadata parsing
+Gemini direct differs:
 
-## Attachment Handling Across Adapters
-The service builds:
+- constructs a `GoogleGenerativeAI` model with `systemInstruction`
+- builds `parts` array
+- image data becomes `inlineData` with MIME type and base64
+- usage comes from `response.usageMetadata`
 
-- text-only prompt bodies
-- OpenAI-style `image_url` message parts
-- Gemini `inlineData` parts
+## Provider-Specific Notes
 
-That means attachment interpretation is adapter-specific.
+| Provider | Notable behavior |
+| --- | --- |
+| OpenRouter | sends `HTTP-Referer` and `X-Title` headers |
+| Grok | uses xAI chat-completions endpoint |
+| Groq | treated as OpenAI-like completions |
+| Together | OpenAI-like chat endpoint with its own bearer token |
+| Hugging Face | OpenAI-like router endpoint |
+| Gemini | direct SDK path, not HTTP fetch in the main request path |
 
-## Database Writes
-Provider adapters themselves do not write to the database. They only produce content and token metadata consumed by routes and socket handlers.
+## Attachment Handling Limits
+
+- text-like files are read from disk and appended as extracted content
+- images under 3 MB are base64-encoded for supported models
+- PDFs only add a metadata note; PDF text extraction is not implemented
 
 ## Risks
-- all providers are called synchronously in request flow
-- no circuit breaker exists for unstable providers
-- content parsing assumes provider response shapes remain stable
-- file support flags are inferred and can drift from reality
 
-## Improvement Opportunities
-- split provider adapters into separate files
-- add contract tests against mocked provider payloads
-- centralize retry policy outside individual request paths
-- capture provider-specific error metrics
+- every adapter is synchronous in the request path
+- retry/fallback sits above adapters, so each adapter failure can add latency before the next attempt
+- only image attachments are truly multimodal; PDFs and many other files are reduced to metadata or plain text snippets
 
+## Rebuild Notes
 
-## Expanded Learning Appendix
+1. isolate each provider adapter in its own module with tests
+2. unify adapter return shapes more formally
+3. add per-provider capability metadata beyond `supportsFiles`
 
-This appendix expands the topic covered in 13-provider-adapters without removing or replacing the earlier material. It is intentionally additive and is meant to help a reader study the implementation from several angles: control flow, data flow, storage, risk, scale, and redesign.
-
-### Extended Study Notes
-- Study note 1 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 2 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 3 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 4 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 5 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 6 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 7 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 8 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 9 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 10 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 11 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 12 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 13 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 14 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 15 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 16 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 17 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 18 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 19 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 20 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 21 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 22 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 23 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 24 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 25 for 13-provider-adapters: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-
-### Detailed Trace Prompts
-- Trace prompt 1 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 2 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 3 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 4 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 5 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 6 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 7 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 8 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 9 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 10 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 11 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 12 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 13 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 14 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 15 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 16 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 17 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 18 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 19 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 20 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 21 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 22 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 23 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 24 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 25 for 13-provider-adapters: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-
-### Data And State Questions
-- Data question 1 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 2 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 3 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 4 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 5 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 6 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 7 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 8 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 9 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 10 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 11 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 12 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 13 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 14 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 15 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 16 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 17 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 18 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 19 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 20 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 21 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 22 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 23 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 24 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 25 for 13-provider-adapters: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\13-provider-adapters.md, then explain what could become inconsistent under concurrency or restart conditions.
-
-### Failure And Recovery Questions
-- Failure question 1 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 2 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 3 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 4 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 5 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 6 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 7 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 8 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 9 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 10 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 11 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 12 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 13 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 14 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 15 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 16 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 17 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 18 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 19 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 20 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 21 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 22 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 23 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 24 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 25 for 13-provider-adapters: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-
-### Scaling And Operations Notes
-- Operations note 1 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 2 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 3 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 4 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 5 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 6 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 7 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 8 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 9 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 10 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 11 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 12 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 13 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 14 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 15 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 16 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 17 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 18 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 19 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 20 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 21 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 22 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 23 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 24 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 25 for 13-provider-adapters: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-
-### Code Review Angles
-- Review angle 1 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 2 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 3 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 4 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 5 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 6 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 7 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 8 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 9 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 10 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 11 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 12 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 13 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 14 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 15 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 16 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 17 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 18 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 19 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 20 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 21 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 22 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 23 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 24 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 25 for 13-provider-adapters: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-
-### Rebuild Guidance Points
-- Rebuild point 1 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 2 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 3 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 4 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 5 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 6 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 7 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 8 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 9 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 10 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 11 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 12 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 13 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 14 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 15 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 16 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 17 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 18 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 19 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 20 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 21 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 22 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 23 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 24 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 25 for 13-provider-adapters: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-
-### Practical Learning Exercises
-- Exercise 1 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 2 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 3 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 4 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 5 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 6 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 7 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 8 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 9 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 10 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 11 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 12 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 13 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 14 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 15 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 16 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 17 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 18 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 19 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 20 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 21 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 22 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 23 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 24 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 25 for 13-provider-adapters: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.

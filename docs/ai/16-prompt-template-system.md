@@ -1,17 +1,19 @@
 # 16. Prompt Template System
 
 ## Purpose
-This document explains how prompt templates are defined, loaded, overridden, and consumed by the AI features.
+
+This document explains default prompt templates, database overrides, interpolation rules, and initial room prompt seeding.
 
 ## Relevant Files
+
 - `services/promptCatalog.js`
 - `models/PromptTemplate.js`
 - `routes/admin.js`
-- `routes/ai.js`
-- `services/gemini.js`
+- `models/Room.js`
 
 ## Default Template Keys
-The source defines built-in templates for:
+
+The live source defines defaults for:
 
 - `solo-chat`
 - `group-chat`
@@ -21,47 +23,43 @@ The source defines built-in templates for:
 - `sentiment`
 - `grammar`
 
-## Why Templates Exist
-Prompt templates give the system a small configuration layer between code and behavior. They let the backend:
+## How Lookup Works
 
-- change instructions without editing routing code
-- separate task-specific behavior from provider adapter code
-- support admin overrides
-- keep feature-level prompts centralized
+`getPromptTemplate(key)`:
 
-## Template Loading Flow
-```mermaid
-flowchart TD
-    Need["Feature needs prompt"] --> DB["findOne({ key, isActive: true })"]
-    DB --> Found{"row exists?"}
-    Found -- yes --> Row["return DB template"]
-    Found -- no --> Default["return DEFAULT_PROMPTS[key]"]
-```
+1. queries `PromptTemplate.findOne({ key, isActive: true })`
+2. if found, returns DB content
+3. otherwise falls back to `DEFAULT_PROMPTS[key]`
+4. otherwise returns `null`
 
-## Template Interpolation
-`interpolatePrompt` replaces placeholders like:
+There is no in-memory cache in source.
+
+## Interpolation
+
+`interpolatePrompt(content, variables)` replaces:
 
 ```text
-{{roomName}}
+{{variableName}}
 ```
 
-with values provided by the caller.
+with the corresponding string value, or empty string if absent.
 
-The primary source use is the room assistant prompt, where the room name is injected.
+Used today for:
 
-## Initial Room Prompt
-`buildInitialRoomHistory(roomName)` creates the initial `aiHistory` entries when a room is first saved. This means prompt templates influence future room AI context even before users explicitly call AI.
+- `roomName` in `group-chat`
 
-## Database Updates
-Prompt-template writes happen through:
+## Initial Room History
 
-- `PUT /api/admin/prompts/:key`
+`buildInitialRoomHistory(roomName)` seeds new rooms with two entries:
 
-which calls:
+1. a `user` role message containing the interpolated room prompt
+2. a `model` role acknowledgement
 
-- `upsertPromptTemplate(key, payload)`
+This seed becomes the base of `Room.aiHistory`.
 
-The model stores:
+## DB Override Behavior
+
+Prompt override documents store:
 
 - `key`
 - `version`
@@ -69,234 +67,25 @@ The model stores:
 - `content`
 - `isActive`
 
+Source behavior is simple: one active row per key is effectively assumed.
+
 ## Risks
-- no version pinning is enforced per conversation or per insight generation
-- a prompt change immediately affects future executions with no rollout control
-- there is no approval or audit workflow for prompt edits
 
-## Improvement Opportunities
-- store prompt version on more AI-generated outputs
-- add template validation by task type
-- add prompt preview and diff tooling
-- add audit logging for prompt changes
+- there is no approval workflow for prompt edits
+- there is no prompt history beyond whatever MongoDB retains in document timestamps
+- prompt changes affect live behavior immediately on next lookup
 
+## `dist/` Drift Notes
 
-## Expanded Learning Appendix
+`dist/services/promptCatalog.service.js` differs in key ways:
 
-This appendix expands the topic covered in 16-prompt-template-system without removing or replacing the earlier material. It is intentionally additive and is meant to help a reader study the implementation from several angles: control flow, data flow, storage, risk, scale, and redesign.
+- maintains an in-memory template cache
+- supports versioned `key_version` upserts
+- builds initial room history as `system` and `assistant` text objects, not Gemini-style `parts`
 
-### Extended Study Notes
-- Study note 1 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 2 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 3 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 4 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 5 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 6 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 7 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 8 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 9 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 10 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 11 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 12 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 13 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 14 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 15 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 16 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 17 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 18 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 19 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 20 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 21 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 22 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 23 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 24 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 25 for 16-prompt-template-system: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
+## Rebuild Notes
 
-### Detailed Trace Prompts
-- Trace prompt 1 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 2 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 3 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 4 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 5 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 6 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 7 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 8 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 9 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 10 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 11 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 12 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 13 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 14 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 15 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 16 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 17 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 18 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 19 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 20 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 21 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 22 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 23 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 24 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 25 for 16-prompt-template-system: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
+1. decide whether templates are configuration or versioned product artifacts
+2. add cache invalidation or explicit refresh semantics
+3. record which prompt version was used by each AI write path
 
-### Data And State Questions
-- Data question 1 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 2 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 3 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 4 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 5 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 6 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 7 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 8 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 9 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 10 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 11 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 12 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 13 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 14 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 15 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 16 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 17 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 18 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 19 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 20 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 21 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 22 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 23 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 24 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 25 for 16-prompt-template-system: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\16-prompt-template-system.md, then explain what could become inconsistent under concurrency or restart conditions.
-
-### Failure And Recovery Questions
-- Failure question 1 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 2 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 3 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 4 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 5 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 6 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 7 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 8 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 9 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 10 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 11 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 12 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 13 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 14 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 15 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 16 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 17 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 18 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 19 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 20 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 21 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 22 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 23 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 24 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 25 for 16-prompt-template-system: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-
-### Scaling And Operations Notes
-- Operations note 1 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 2 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 3 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 4 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 5 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 6 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 7 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 8 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 9 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 10 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 11 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 12 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 13 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 14 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 15 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 16 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 17 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 18 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 19 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 20 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 21 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 22 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 23 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 24 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 25 for 16-prompt-template-system: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-
-### Code Review Angles
-- Review angle 1 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 2 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 3 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 4 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 5 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 6 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 7 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 8 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 9 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 10 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 11 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 12 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 13 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 14 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 15 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 16 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 17 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 18 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 19 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 20 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 21 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 22 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 23 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 24 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 25 for 16-prompt-template-system: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-
-### Rebuild Guidance Points
-- Rebuild point 1 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 2 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 3 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 4 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 5 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 6 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 7 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 8 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 9 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 10 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 11 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 12 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 13 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 14 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 15 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 16 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 17 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 18 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 19 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 20 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 21 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 22 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 23 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 24 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 25 for 16-prompt-template-system: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-
-### Practical Learning Exercises
-- Exercise 1 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 2 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 3 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 4 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 5 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 6 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 7 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 8 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 9 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 10 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 11 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 12 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 13 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 14 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 15 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 16 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 17 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 18 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 19 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 20 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 21 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 22 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 23 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 24 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 25 for 16-prompt-template-system: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.

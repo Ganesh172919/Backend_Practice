@@ -1,276 +1,63 @@
 # 33. Failure Modes
 
 ## Purpose
-This document catalogs the main AI failure cases in the current backend and explains what the system does today.
 
-## Core Failure Categories
-- provider rate limits
-- invalid or removed models
-- provider credit exhaustion
-- network failures
-- malformed model JSON output
-- invalid attachment payloads
-- missing room membership
-- stale or missing insight
-- weak memory retrieval
-- source vs `dist` architectural drift
+This document catalogs the main ways the AI backend can fail and what the current system does in each case.
 
-## Failure Table
-| Failure | Where it happens | Current behavior | Risk |
-|---|---|---|---|
-| provider 429 | `services/gemini.js` | normalized retryable error, may fallback | latency spike |
-| invalid model id | routing/provider | may fallback or return 503 | brittle model name strings |
-| no providers configured | model routing | offline fallback | degraded product behavior |
-| invalid attachment | route/socket validation | immediate 400/error_message | user confusion |
-| insight refresh failure | post-chat/post-room | warning log, primary request can still succeed | stale downstream context |
-| socket not in room | `trigger_ai` | error_message | UX inconsistency if room join state is stale |
-| process restart | in-memory quota/state | counters reset | policy drift |
+## Provider Outage
 
-## Failure Tree
-```mermaid
-flowchart TD
-    Req["AI request"] --> Validation{"valid input?"}
-    Validation -- no --> Reject["400 or socket error"]
-    Validation -- yes --> Quota{"quota available?"}
-    Quota -- no --> Limit["429 or socket error"]
-    Quota -- yes --> Provider{"provider succeeds?"}
-    Provider -- yes --> Persist{"post-processing succeeds?"}
-    Provider -- no --> Fallback{"retry/fallback available?"}
-    Fallback -- yes --> Retry["next model"]
-    Fallback -- no --> Fail["return 429/503/500 or fallback room message"]
-    Persist -- no --> Partial["primary result may still succeed with stale derivatives"]
-```
+Effects:
 
-## Key Reliability Weaknesses
-- no distributed coordination
-- no persistent job queue
-- no circuit breaker
-- no schema-validated model outputs beyond light normalization
-- no transaction across multi-collection writes
+- solo chat may retry across multiple models/providers and finally return `503`
+- helper endpoints may degrade to deterministic fallback
+- room AI may store a generic AI error message in the room transcript
 
-## Improvement Opportunities
-- add provider health state
-- queue secondary writes
-- add deterministic fallback classifiers for helper features
-- instrument failure rates per provider and feature
+## Bad Attachments
 
+Effects:
 
-## Expanded Learning Appendix
+- invalid metadata is rejected before model invocation
+- unsupported MIME types are rejected at upload time or attachment-validation time
+- PDFs are accepted but only weakly represented in prompts
 
-This appendix expands the topic covered in 33-failure-modes without removing or replacing the earlier material. It is intentionally additive and is meant to help a reader study the implementation from several angles: control flow, data flow, storage, risk, scale, and redesign.
+## Stale Insights
 
-### Extended Study Notes
-- Study note 1 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 2 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 3 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 4 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 5 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 6 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 7 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 8 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 9 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 10 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 11 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 12 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 13 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 14 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 15 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 16 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 17 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 18 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 19 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 20 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 21 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 22 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 23 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 24 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
-- Study note 25 for 33-failure-modes: revisit the exact control path related to this topic and identify which route, middleware, model, or service acts as the real decision point rather than the most visible file.
+Effects:
 
-### Detailed Trace Prompts
-- Trace prompt 1 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 2 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 3 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 4 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 5 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 6 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 7 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 8 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 9 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 10 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 11 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 12 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 13 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 14 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 15 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 16 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 17 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 18 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 19 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 20 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 21 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 22 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 23 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 24 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
-- Trace prompt 25 for 33-failure-modes: walk one realistic request through the backend and write down the precise sequence of reads, transformations, provider calls, and writes that happen before the client sees a result.
+- cached insight may be used even when transcript changed recently
+- prompt context may lag behind current conversation
+- room/global insights are especially vulnerable if refreshes fail silently
 
-### Data And State Questions
-- Data question 1 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 2 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 3 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 4 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 5 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 6 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 7 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 8 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 9 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 10 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 11 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 12 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 13 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 14 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 15 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 16 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 17 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 18 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 19 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 20 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 21 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 22 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 23 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 24 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
-- Data question 25 for 33-failure-modes: identify what state is durable, what state is request-scoped, and what state is process-local in C:\Users\RAVIPRAKASH\Downloads\backend\docs\ai\33-failure-modes.md, then explain what could become inconsistent under concurrency or restart conditions.
+## Memory Misses
 
-### Failure And Recovery Questions
-- Failure question 1 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 2 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 3 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 4 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 5 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 6 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 7 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 8 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 9 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 10 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 11 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 12 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 13 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 14 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 15 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 16 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 17 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 18 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 19 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 20 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 21 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 22 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 23 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 24 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
-- Failure question 25 for 33-failure-modes: ask what happens if the dependent provider, database read, validation step, or post-processing step fails halfway through, and whether the current implementation leaves behind partial success or visible drift.
+Effects:
 
-### Scaling And Operations Notes
-- Operations note 1 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 2 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 3 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 4 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 5 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 6 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 7 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 8 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 9 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 10 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 11 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 12 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 13 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 14 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 15 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 16 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 17 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 18 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 19 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 20 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 21 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 22 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 23 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 24 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
-- Operations note 25 for 33-failure-modes: estimate how this part of the system behaves under higher load, with particular attention to synchronous waiting, MongoDB contention, in-memory state, and multi-instance deployment concerns.
+- prompt loses durable user context
+- no hard error occurs; the model simply answers without memory help
 
-### Code Review Angles
-- Review angle 1 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 2 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 3 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 4 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 5 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 6 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 7 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 8 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 9 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 10 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 11 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 12 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 13 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 14 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 15 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 16 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 17 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 18 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 19 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 20 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 21 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 22 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 23 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 24 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
-- Review angle 25 for 33-failure-modes: inspect whether naming, ownership boundaries, response shaping, and write ordering make the code easy to reason about or whether the logic would be safer if orchestration were extracted into a narrower service layer.
+## Quota Exhaustion
 
-### Rebuild Guidance Points
-- Rebuild point 1 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 2 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 3 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 4 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 5 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 6 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 7 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 8 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 9 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 10 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 11 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 12 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 13 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 14 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 15 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 16 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 17 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 18 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 19 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 20 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 21 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 22 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 23 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 24 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
-- Rebuild point 25 for 33-failure-modes: if this topic were rebuilt from scratch, define the minimum clean interface, the data contract, the failure contract, and the observability you would want before calling the implementation production ready.
+Effects:
 
-### Practical Learning Exercises
-- Exercise 1 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 2 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 3 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 4 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 5 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 6 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 7 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 8 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 9 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 10 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 11 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 12 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 13 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 14 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 15 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 16 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 17 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 18 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 19 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 20 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 21 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 22 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 23 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 24 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
-- Exercise 25 for 33-failure-modes: open the files referenced by this document, compare the stated behavior with the live source, and note any gaps between the intended architecture, the actual control flow, and the likely next refactor that would improve reliability.
+- REST helper endpoints return `429`
+- `/api/chat` returns `429` from quota middleware
+- `trigger_ai` emits a socket error and stops before provider invocation
+
+## Drift
+
+The repo contains a `dist/` tree that reflects a materially different AI backend. Failure investigations can go wrong if engineers read `dist/` and assume the same schemas or payloads exist in source.
+
+## Duplicate Writes
+
+Potential sources:
+
+- client retries after timeout
+- socket retries on unstable networks
+- lack of idempotency keys for solo or room AI
+
+## Rebuild Notes
+
+1. distinguish soft fallback from hard failure in observability
+2. add idempotency or dedupe for AI actions
+3. make insight freshness explicit
+
