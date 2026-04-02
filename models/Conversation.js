@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for user-owned direct AI conversation threads.
+ * WHY: Persists message history and model metadata for continuity and replay.
+ * WHAT: Defines conversation owner, title, message array, and provider/model fields.
+ * HOW: Uses mongoose schema defaults and nested message documents with timestamps.
+ */
 const mongoose = require('mongoose');
 
 const conversationMessageSchema = new mongoose.Schema({

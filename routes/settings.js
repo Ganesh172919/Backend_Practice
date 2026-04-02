@@ -1,3 +1,9 @@
+/**
+ * File Overview: User setting retrieval and update routes.
+ * WHY: Keeps preference persistence behavior stable for frontend settings pages.
+ * WHAT: Returns effective settings and applies validated updates.
+ * HOW: Reads and writes nested preference fields with fallback defaults.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const User = require('../models/User');
@@ -84,6 +90,11 @@ router.put('/', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get default settings for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getDefaultSettings() {
   return {
     theme: { mode: 'dark', customTheme: 'default' },

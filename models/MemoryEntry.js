@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for personalized user memory records.
+ * WHY: Provides durable context facts used for AI response personalization.
+ * WHAT: Stores memory summary/details, source, tags, and scoring attributes.
+ * HOW: Combines fingerprint fields, ranking scores, and usage counters for retrieval.
+ */
 const mongoose = require('mongoose');
 
 const memoryEntrySchema = new mongoose.Schema({

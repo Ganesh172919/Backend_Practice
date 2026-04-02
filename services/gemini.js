@@ -1,3 +1,9 @@
+/**
+ * File Overview: Multi-provider AI orchestration and model routing core.
+ * WHY: Presents a unified interface across OpenRouter, Gemini, Grok, Together, Groq, and HF providers.
+ * WHAT: Builds prompts, handles attachment context, fetches catalogs, normalizes errors, and performs fallback retries.
+ * HOW: Resolves model/provider selection, executes provider-specific API calls, and applies retry/fallback strategy.
+ */
 const fs = require('fs/promises');
 const path = require('path');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -99,6 +105,11 @@ const runtimeModelCatalog = {
   refreshPromise: null,
 };
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract status code for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractStatusCode(error) {
   const candidates = [
     error?.statusCode,
@@ -118,6 +129,11 @@ function extractStatusCode(error) {
   return match ? Number(match[1]) : null;
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract retry after ms for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractRetryAfterMs(error) {
   const message = String(error?.message || '');
   const retryDelayMatch = message.match(/retryDelay":"(\d+)s"/i);
@@ -133,11 +149,17 @@ function extractRetryAfterMs(error) {
   return null;
 }
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize ai error for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeAiError(error, model) {
   const message = String(error?.message || 'AI request failed');
   const statusCode = extractStatusCode(error);
   const retryAfterMs = extractRetryAfterMs(error);
   const lowerMessage = message.toLowerCase();
+  // Provider messages are inconsistent, so we classify by both status code and text heuristics.
   const isModelUnavailable = lowerMessage.includes('not a valid model')
     || lowerMessage.includes('invalid model')
     || lowerMessage.includes('unable to access model')
@@ -189,6 +211,11 @@ function normalizeAiError(error, model) {
   return wrappedError;
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build offline fallback response for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildOfflineFallbackResponse(operation) {
   if (operation === 'json') {
     return '{}';
@@ -197,6 +224,11 @@ function buildOfflineFallbackResponse(operation) {
   return 'AI providers are temporarily unavailable right now. Please try again shortly or choose a different model.';
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build fallback model chain for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildFallbackModelChain(primaryModel) {
   const maxAttempts = Math.max(1, Number(process.env.AI_FALLBACK_MODEL_LIMIT || 6));
   const providerPriority = ['openrouter', 'gemini', 'grok', 'groq', 'together', 'huggingface'];
@@ -224,6 +256,11 @@ function buildFallbackModelChain(primaryModel) {
   return [primaryModel, ...diversified, ...overflow].slice(0, maxAttempts);
 }
 
+/**
+ * WHY: Transforms loosely structured text or payloads into validated structures.
+ * WHAT: Implements parse configured models for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function parseConfiguredModels(raw, provider) {
   return String(raw || '')
     .split(',')
@@ -248,6 +285,11 @@ function parseConfiguredModels(raw, provider) {
     .filter(Boolean);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements dedupe models for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function dedupeModels(models) {
   const seen = new Set();
   return models.filter((model) => {
@@ -259,6 +301,11 @@ function dedupeModels(models) {
   });
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements pretty model label for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function prettyModelLabel(modelId) {
   return String(modelId || '')
     .split('/')
@@ -267,6 +314,11 @@ function prettyModelLabel(modelId) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements with provider metadata for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function withProviderMetadata(models, provider, labelSuffix = '') {
   return models.map((model) => ({
     ...model,
@@ -277,6 +329,11 @@ function withProviderMetadata(models, provider, labelSuffix = '') {
   }));
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get configured provider models for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getConfiguredProviderModels(provider, envValue, defaults, labelSuffix = '') {
   const configured = parseConfiguredModels(envValue, provider);
   if (configured.length > 0) {
@@ -286,6 +343,11 @@ function getConfiguredProviderModels(provider, envValue, defaults, labelSuffix =
   return withProviderMetadata(defaults, provider, labelSuffix);
 }
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize catalog models for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeCatalogModels(models, provider, labelSuffix = '') {
   return withProviderMetadata(
     models
@@ -300,6 +362,11 @@ function normalizeCatalogModels(models, provider, labelSuffix = '') {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch provider json for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchProviderJson(url, options = {}) {
   const response = await fetch(url, options);
   const payload = await response.json().catch(() => ({}));
@@ -311,6 +378,11 @@ async function fetchProviderJson(url, options = {}) {
   return payload;
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is supported open router model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isSupportedOpenRouterModel(model) {
   const outputModalities = model?.architecture?.output_modalities || [];
   return Boolean(
@@ -319,6 +391,11 @@ function isSupportedOpenRouterModel(model) {
   );
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is supported together model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isSupportedTogetherModel(modelId, model) {
   const lowerId = String(modelId || '').toLowerCase();
   return model?.type === 'chat'
@@ -331,6 +408,11 @@ function isSupportedTogetherModel(modelId, model) {
     && !lowerId.includes('imagen');
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is supported groq model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isSupportedGroqModel(modelId) {
   const lowerId = String(modelId || '').toLowerCase();
   return !lowerId.includes('whisper')
@@ -340,6 +422,11 @@ function isSupportedGroqModel(modelId) {
     && !lowerId.includes('allam');
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is supported gemini model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isSupportedGeminiModel(name, model) {
   const lowerName = String(name || '').toLowerCase();
   const methods = model?.supportedGenerationMethods || [];
@@ -357,6 +444,11 @@ function isSupportedGeminiModel(name, model) {
     && !lowerName.includes('live');
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch open router catalog for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchOpenRouterCatalog() {
   const payload = await fetchProviderJson('https://openrouter.ai/api/v1/models');
   return normalizeCatalogModels(
@@ -373,6 +465,11 @@ async function fetchOpenRouterCatalog() {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch together catalog for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchTogetherCatalog() {
   const payload = await fetchProviderJson('https://api.together.xyz/v1/models', {
     headers: { Authorization: `Bearer ${TOGETHER_API_KEY}` },
@@ -397,6 +494,11 @@ async function fetchTogetherCatalog() {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch groq catalog for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchGroqCatalog() {
   const payload = await fetchProviderJson('https://api.groq.com/openai/v1/models', {
     headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
@@ -414,6 +516,11 @@ async function fetchGroqCatalog() {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch grok catalog for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchGrokCatalog() {
   const payload = await fetchProviderJson('https://api.x.ai/v1/models', {
     headers: { Authorization: `Bearer ${GROK_API_KEY}` },
@@ -431,6 +538,11 @@ async function fetchGrokCatalog() {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch gemini catalog for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchGeminiCatalog() {
   const payload = await fetchProviderJson(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(process.env.GEMINI_API_KEY || '')}`);
   return normalizeCatalogModels(
@@ -449,6 +561,11 @@ async function fetchGeminiCatalog() {
   );
 }
 
+/**
+ * WHY: Recomputes cached or derived state when it can become stale.
+ * WHAT: Implements refresh model catalogs for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function refreshModelCatalogs(options = {}) {
   const force = options.force === true;
   const isFresh = !force && runtimeModelCatalog.lastRefreshedAt > 0
@@ -492,6 +609,11 @@ async function refreshModelCatalogs(options = {}) {
   return runtimeModelCatalog.refreshPromise;
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get available models for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getAvailableModels(options = {}) {
   const includeFallback = options.includeFallback !== false;
   const models = [];
@@ -557,6 +679,11 @@ function getAvailableModels(options = {}) {
   return dedupeModels(models);
 }
 
+/**
+ * WHY: Maps requested identifiers into concrete runtime choices.
+ * WHAT: Implements resolve model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function resolveModel(requestedModelId, options = {}) {
   const models = getAvailableModels(options);
   if (models.length === 0) {
@@ -572,6 +699,11 @@ function resolveModel(requestedModelId, options = {}) {
   return defaultModel || models[0];
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements estimate prompt complexity for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function estimatePromptComplexity(promptText, attachmentPayload, operation) {
   const promptLength = String(promptText || '').length;
   if (attachmentPayload || operation === 'group-chat' || promptLength > 2800) {
@@ -583,6 +715,11 @@ function estimatePromptComplexity(promptText, attachmentPayload, operation) {
   return 'low';
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements find first model by patterns for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function findFirstModelByPatterns(models, patterns) {
   for (const pattern of patterns) {
     const match = models.find((model) => model.id.toLowerCase().includes(pattern.toLowerCase()));
@@ -593,6 +730,11 @@ function findFirstModelByPatterns(models, patterns) {
   return null;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements rank models for task for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function rankModelsForTask(models, context = {}) {
   const complexity = context.complexity || 'medium';
   const operation = context.operation || 'chat';
@@ -633,6 +775,11 @@ function rankModelsForTask(models, context = {}) {
   return [...prioritized, ...remaining];
 }
 
+/**
+ * WHY: Maps requested identifiers into concrete runtime choices.
+ * WHAT: Implements resolve task model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function resolveTaskModel(requestedModelId, context = {}) {
   const availableModels = getAvailableModels({ includeFallback: false }).filter((model) => model.provider !== 'fallback');
   if (availableModels.length === 0) {
@@ -665,6 +812,11 @@ function resolveTaskModel(requestedModelId, context = {}) {
   };
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build memory context for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildMemoryContext(memoryEntries = []) {
   if (!Array.isArray(memoryEntries) || memoryEntries.length === 0) {
     return '';
@@ -676,6 +828,11 @@ function buildMemoryContext(memoryEntries = []) {
   ].join('\n');
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build insight context for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildInsightContext(insight) {
   if (!insight) {
     return '';
@@ -693,6 +850,11 @@ function buildInsightContext(insight) {
   return lines.length > 0 ? ['Conversation insight:', ...lines].join('\n') : '';
 }
 
+/**
+ * WHY: Transforms loosely structured text or payloads into validated structures.
+ * WHAT: Implements parse json from text for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function parseJsonFromText(text, fallback) {
   const source = String(text || '').trim();
   const objectMatch = source.match(/\{[\s\S]*\}/);
@@ -706,6 +868,11 @@ function parseJsonFromText(text, fallback) {
   }
 }
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize history entry for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeHistoryEntry(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -731,6 +898,11 @@ function normalizeHistoryEntry(entry) {
   return null;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements serialize history for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function serializeHistory(history = []) {
   const normalized = Array.isArray(history)
     ? history.map(normalizeHistoryEntry).filter(Boolean).slice(-20)
@@ -746,6 +918,11 @@ function serializeHistory(history = []) {
   ].join('\n');
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements safe read file for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function safeReadFile(filePath, encoding = null) {
   try {
     return await fs.readFile(filePath, encoding ? { encoding } : undefined);
@@ -754,6 +931,11 @@ async function safeReadFile(filePath, encoding = null) {
   }
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get attachment file path for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getAttachmentFilePath(attachment) {
   if (!attachment?.fileUrl || typeof attachment.fileUrl !== 'string') {
     return null;
@@ -767,6 +949,11 @@ function getAttachmentFilePath(attachment) {
   return path.join(uploadDir, baseName);
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build attachment payload for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function buildAttachmentPayload(attachment) {
   if (!attachment?.fileUrl) {
     return null;
@@ -826,6 +1013,11 @@ async function buildAttachmentPayload(attachment) {
   return payload;
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build project context for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function buildProjectContext(project) {
   if (!project) {
     return '';
@@ -881,6 +1073,11 @@ async function buildProjectContext(project) {
   return sections.join('\n\n');
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build prompt for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildPrompt({
   history,
   userMessage,
@@ -889,6 +1086,7 @@ function buildPrompt({
   attachmentPayload,
   extraSections = [],
 }) {
+  // Ordering matters: prior context first, then the current request as the final instruction block.
   return [
     serializeHistory(history),
     buildMemoryContext(memoryEntries),
@@ -901,6 +1099,11 @@ function buildPrompt({
     .join('\n\n');
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements fetch json for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
   let payload = {};
@@ -921,6 +1124,11 @@ async function fetchJson(url, options) {
   return payload;
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract text from open ai like response for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractTextFromOpenAiLikeResponse(payload) {
   const choice = payload?.choices?.[0]?.message;
   if (!choice) {
@@ -949,6 +1157,11 @@ function extractTextFromOpenAiLikeResponse(payload) {
   return '';
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract usage from open ai like response for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractUsageFromOpenAiLikeResponse(payload) {
   const usage = payload?.usage || {};
   return {
@@ -958,6 +1171,11 @@ function extractUsageFromOpenAiLikeResponse(payload) {
   };
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract usage from gemini response for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractUsageFromGeminiResponse(result) {
   const usage = result?.response?.usageMetadata || {};
   return {
@@ -967,6 +1185,11 @@ function extractUsageFromGeminiResponse(result) {
   };
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build open ai messages for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildOpenAiMessages(systemPrompt, promptText, attachmentPayload) {
   const contentParts = [{ type: 'text', text: promptText }];
 
@@ -991,7 +1214,13 @@ function buildOpenAiMessages(systemPrompt, promptText, attachmentPayload) {
   ];
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get max tokens for operation for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getMaxTokensForOperation(operation) {
+  // Token budgets are operation-specific to keep JSON helpers short and chat replies richer.
   if (operation === 'json') {
     return Math.max(128, Number(process.env.AI_JSON_MAX_COMPLETION_TOKENS || 400));
   }
@@ -1003,6 +1232,11 @@ function getMaxTokensForOperation(operation) {
   return Math.max(256, Number(process.env.AI_MAX_COMPLETION_TOKENS || 800));
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run open router request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runOpenRouterRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   const payload = await fetchJson('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -1026,6 +1260,11 @@ async function runOpenRouterRequest(model, systemPrompt, promptText, attachmentP
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run grok request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runGrokRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   const payload = await fetchJson('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
@@ -1047,6 +1286,11 @@ async function runGrokRequest(model, systemPrompt, promptText, attachmentPayload
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run hugging face request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runHuggingFaceRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   const payload = await fetchJson('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
@@ -1068,6 +1312,11 @@ async function runHuggingFaceRequest(model, systemPrompt, promptText, attachment
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run together request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runTogetherRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   const payload = await fetchJson('https://api.together.xyz/v1/chat/completions', {
     method: 'POST',
@@ -1089,6 +1338,11 @@ async function runTogetherRequest(model, systemPrompt, promptText, attachmentPay
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run groq direct request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runGroqDirectRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   const payload = await fetchJson('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -1110,6 +1364,11 @@ async function runGroqDirectRequest(model, systemPrompt, promptText, attachmentP
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run gemini request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runGeminiRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens) {
   if (!genAI) {
     return { content: '', usage: { promptTokens: null, completionTokens: null, totalTokens: null } };
@@ -1146,6 +1405,11 @@ async function runGeminiRequest(model, systemPrompt, promptText, attachmentPaylo
   };
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run model prompt for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runModelPrompt({ promptText, systemPrompt = '', modelId, attachment }) {
   const model = resolveModel(modelId);
   const attachmentPayload = await buildAttachmentPayload(attachment);
@@ -1184,6 +1448,11 @@ async function runModelPrompt({ promptText, systemPrompt = '', modelId, attachme
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements execute model request for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function executeModelRequest(model, systemPrompt, promptText, attachmentPayload, operation) {
   const maxTokens = getMaxTokensForOperation(operation);
 
@@ -1210,6 +1479,11 @@ async function executeModelRequest(model, systemPrompt, promptText, attachmentPa
   return runGeminiRequest(model, systemPrompt, promptText, attachmentPayload, maxTokens);
 }
 
+/**
+ * WHY: Executes a provider-specific or workflow-specific path behind a uniform entrypoint.
+ * WHAT: Implements run model prompt with fallback for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function runModelPromptWithFallback({ promptText, systemPrompt = '', modelId, attachment, operation = 'prompt' }) {
   const attachmentPayload = await buildAttachmentPayload(attachment);
   const complexity = estimatePromptComplexity(promptText, attachmentPayload, operation);
@@ -1234,6 +1508,7 @@ async function runModelPromptWithFallback({ promptText, systemPrompt = '', model
     getAvailableModels({ includeFallback: false }).filter((entry) => entry.provider !== 'fallback'),
     { operation, promptText, attachmentPayload, complexity }
   );
+  // Attempt chain starts with the selected model, then uses ranked alternates for resilience.
   const attemptChain = [model, ...rankedModels.filter((entry) => entry.id !== model.id)]
     .slice(0, Math.max(1, Number(process.env.AI_FALLBACK_MODEL_LIMIT || 6)));
   let lastError = null;
@@ -1260,6 +1535,7 @@ async function runModelPromptWithFallback({ promptText, systemPrompt = '', model
     try {
       const result = await executeModelRequest(currentModel, systemPrompt, promptText, attachmentPayload, operation);
       const processingMs = Date.now() - startedAt;
+      // Token usage is surfaced to callers for analytics, quota UX, and model-cost observability.
       const usage = result?.usage || { promptTokens: null, completionTokens: null, totalTokens: null };
 
       logger.info('AI_SUCCESS', 'Model prompt completed', {
@@ -1304,6 +1580,7 @@ async function runModelPromptWithFallback({ promptText, systemPrompt = '', model
       });
 
       if (!normalizedError.isRetryable || attemptIndex === attemptChain.length - 1) {
+        // Stop retries on hard failures or when no additional fallback model remains.
         throw normalizedError;
       }
     }
@@ -1312,6 +1589,11 @@ async function runModelPromptWithFallback({ promptText, systemPrompt = '', model
   throw lastError || new Error('AI request failed');
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get json from model for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function getJsonFromModel(prompt, fallback, options = {}) {
   const result = await runModelPromptWithFallback({
     promptText: String(prompt || ''),
@@ -1321,6 +1603,11 @@ async function getJsonFromModel(prompt, fallback, options = {}) {
   return parseJsonFromText(result.content, fallback);
 }
 
+/**
+ * WHY: Encapsulates outbound communication flow behind one stable function contract.
+ * WHAT: Implements send message for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function sendMessage(history, userMessage, options = {}) {
   const promptTemplate = await getPromptTemplate('solo-chat');
   const promptText = buildPrompt({
@@ -1343,6 +1630,11 @@ async function sendMessage(history, userMessage, options = {}) {
   return result;
 }
 
+/**
+ * WHY: Encapsulates outbound communication flow behind one stable function contract.
+ * WHAT: Implements send group message for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function sendGroupMessage(roomHistory, userMessage, username, options = {}) {
   const promptTemplate = await getPromptTemplate('group-chat');
   const systemPrompt = interpolatePrompt(

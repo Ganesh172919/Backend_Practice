@@ -1,3 +1,9 @@
+/**
+ * File Overview: Admin governance endpoints.
+ * WHY: Exposes privileged control-plane operations for moderation and AI configuration.
+ * WHAT: Provides stats, report review, user management, and prompt administration APIs.
+ * HOW: Combines auth/admin middleware with cross-collection reads and updates.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const adminCheck = require('../middleware/admin');

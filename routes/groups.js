@@ -1,3 +1,9 @@
+/**
+ * File Overview: Group member role and membership management routes.
+ * WHY: Provides controlled member administration in multi-user rooms.
+ * WHAT: Lists members, updates roles, and removes members from rooms.
+ * HOW: Validates actor privileges against role hierarchy before mutations.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Room = require('../models/Room');

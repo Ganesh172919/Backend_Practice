@@ -1,3 +1,9 @@
+/**
+ * File Overview: Conversation browsing and lifecycle routes.
+ * WHY: Lets users inspect and manage stored direct-chat sessions.
+ * WHAT: Exposes list/get/insight/action/delete operations for conversation records.
+ * HOW: Applies ownership checks, pagination, and insight lookups per request.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Conversation = require('../models/Conversation');

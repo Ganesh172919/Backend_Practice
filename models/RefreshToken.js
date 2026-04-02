@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for refresh token persistence.
+ * WHY: Supports secure token rotation, session continuity, and logout revocation.
+ * WHAT: Stores refresh token value, owner, and expiration metadata.
+ * HOW: Auth routes issue and validate these records during refresh workflows.
+ */
 const mongoose = require('mongoose');
 
 const refreshTokenSchema = new mongoose.Schema({

@@ -1,9 +1,25 @@
+/**
+ * File Overview: Express rate limiter definitions for auth/API/AI paths.
+ * WHY: Provides transport-level abuse protection independent from business quota logic.
+ * WHAT: Exports configured limiters and retry response helpers.
+ * HOW: Builds per-user/per-ip limiter keys and standardized limit exceeded payloads.
+ */
 const rateLimit = require('express-rate-limit');
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build rate limit key for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildRateLimitKey(req) {
   return req.user?.id ? `user:${req.user.id}` : rateLimit.ipKeyGenerator(req.ip);
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build retry payload for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildRetryPayload(req, message, retryAfterMs = 0) {
   return {
     error: message,

@@ -1,3 +1,9 @@
+/**
+ * File Overview: Conversation and room export routes.
+ * WHY: Supports user data portability and downstream analysis workflows.
+ * WHAT: Returns normalized export payloads for conversations and rooms.
+ * HOW: Performs access checks then uses export service formatting helpers.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Conversation = require('../models/Conversation');

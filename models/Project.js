@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for project-level AI context containers.
+ * WHY: Lets users reuse project context and instructions across conversations.
+ * WHAT: Stores project metadata, context blocks, tags, and ownership.
+ * HOW: Links projects to conversations and validates user ownership boundaries.
+ */
 const mongoose = require('mongoose');
 
 const projectFileSchema = new mongoose.Schema({

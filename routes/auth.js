@@ -1,3 +1,9 @@
+/**
+ * File Overview: Authentication and account recovery API routes.
+ * WHY: Keeps login, registration, OAuth, refresh, and reset flows in one bounded module.
+ * WHAT: Issues tokens, validates credentials, links Google login, and handles password reset.
+ * HOW: Coordinates user model checks, refresh token persistence, and email delivery hooks.
+ */
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -18,11 +24,21 @@ const GOOGLE_OAUTH_ENABLED = Boolean(
 const GOOGLE_LOGIN_CODE_TTL_MS = 5 * 60 * 1000;
 const googleLoginCodes = new Map();
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get client url for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getClientUrl() {
   return process.env.CLIENT_URL || 'http://localhost:5173';
 }
 
 // Generate access + refresh tokens
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements generate tokens for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function generateTokens(user) {
   const payload = {
     id: user._id.toString(),
@@ -37,11 +53,21 @@ function generateTokens(user) {
 }
 
 // Save refresh token to DB
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements save refresh token for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function saveRefreshToken(token, userId) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await RefreshToken.create({ token, userId, expiresAt });
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements issue google login code for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function issueGoogleLoginCode(userId) {
   const now = Date.now();
 
@@ -60,6 +86,11 @@ function issueGoogleLoginCode(userId) {
   return code;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements consume google login code for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function consumeGoogleLoginCode(code) {
   const session = googleLoginCodes.get(code);
   if (!session) {

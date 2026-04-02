@@ -1,3 +1,9 @@
+/**
+ * File Overview: Safety reporting and block list routes.
+ * WHY: Gives users moderation controls and abuse-reporting capability.
+ * WHAT: Handles report submission and block/unblock operations.
+ * HOW: Validates targets, enforces anti-duplication rules, and persists moderation records.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Report = require('../models/Report');

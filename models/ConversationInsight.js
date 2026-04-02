@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for structured AI-generated conversation insights.
+ * WHY: Caches summaries/topics/actions for faster client display and analytics.
+ * WHAT: Stores title, summary, intent, topics, decisions, and action items by scope.
+ * HOW: Upserts scoped insight records keyed by conversation or room identity.
+ */
 const mongoose = require('mongoose');
 
 const actionItemSchema = new mongoose.Schema({

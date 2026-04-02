@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for collaborative rooms and room-level AI history.
+ * WHY: Represents membership, permissions, and room context used by realtime chat.
+ * WHAT: Defines room metadata, members with roles, AI history, and pinned message refs.
+ * HOW: Socket and route handlers mutate member and history arrays as room activity evolves.
+ */
 const mongoose = require('mongoose');
 const { buildInitialRoomHistory } = require('../services/promptCatalog');
 

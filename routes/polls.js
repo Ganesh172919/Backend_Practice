@@ -1,3 +1,9 @@
+/**
+ * File Overview: Poll creation and voting routes.
+ * WHY: Enables structured polls inside collaborative rooms.
+ * WHAT: Creates polls, retrieves state, records votes, and closes active polls.
+ * HOW: Checks membership and vote constraints, then updates poll documents atomically.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Poll = require('../models/Poll');
@@ -10,6 +16,11 @@ const {
 
 const router = express.Router();
 
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format poll for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatPoll(poll, currentUserId) {
   const totalVotes = poll.options.reduce((sum, option) => sum + option.votes.length, 0);
 
@@ -37,6 +48,11 @@ function formatPoll(poll, currentUserId) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements load member room for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function loadMemberRoom(roomId, userId) {
   const room = await Room.findById(roomId).select('members creatorId').lean();
   if (!room) {

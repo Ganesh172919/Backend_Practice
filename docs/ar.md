@@ -908,3 +908,4 @@ At this point in the deep dive, we can describe the execution story clearly:
 - an adapter executes the request
 - failures are normalized
 - fallback attempts continue if allowed
+ 

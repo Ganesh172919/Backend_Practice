@@ -1,3 +1,9 @@
+/**
+ * File Overview: Platform analytics endpoints.
+ * WHY: Supplies dashboard-ready usage metrics for admins and operators.
+ * WHAT: Returns aggregated counts and trends for messages, users, and room activity.
+ * HOW: Builds Mongo aggregation pipelines with access control guards.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const adminCheck = require('../middleware/admin');

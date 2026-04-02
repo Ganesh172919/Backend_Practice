@@ -1,3 +1,9 @@
+/**
+ * File Overview: Conversation and room insight generation service.
+ * WHY: Summarizes long chat histories into compact, machine-readable insights.
+ * WHAT: Generates insight payloads via AI or fallback logic and persists scoped records.
+ * HOW: Builds prompt context from recent messages, enforces schema shape, and upserts results.
+ */
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const ConversationInsight = require('../models/ConversationInsight');
@@ -5,13 +11,24 @@ const { getJsonFromModel } = require('./gemini');
 const { normalizeText } = require('./memory');
 const logger = require('../helpers/logger');
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build scope key for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildScopeKey(scopeType, scopeId, userId = null) {
   return `${scopeType}:${scopeId}:${userId ? String(userId) : 'global'}`;
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build fallback insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildFallbackInsight(messages, fallbackTitle = 'Untitled conversation') {
   const text = messages.map((message) => message.content).join(' ');
   const words = text.split(/\s+/).filter(Boolean);
+  // Deterministic fallback keeps insights available even when provider calls fail.
   const topics = [...new Set(words
     .map((word) => normalizeText(word))
     .filter((word) => word.length > 4)
@@ -27,6 +44,11 @@ function buildFallbackInsight(messages, fallbackTitle = 'Untitled conversation')
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements generate insight payload for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function generateInsightPayload(messages, fallbackTitle, modelId = null) {
   const conversationText = messages
     .slice(-20)
@@ -55,6 +77,7 @@ async function generateInsightPayload(messages, fallbackTitle, modelId = null) {
     });
   }
 
+  // Clamp all fields to protect storage and UI contracts from overly large model output.
   return {
     title: String(result.title || fallback.title).slice(0, 120),
     summary: String(result.summary || fallback.summary).slice(0, 2400),
@@ -78,6 +101,11 @@ async function generateInsightPayload(messages, fallbackTitle, modelId = null) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements save insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function saveInsight({ scopeType, scopeId, userId = null, conversationId = null, roomId = null, messages, fallbackTitle, modelId = null }) {
   const payload = await generateInsightPayload(messages, fallbackTitle, modelId);
 
@@ -116,6 +144,11 @@ async function saveInsight({ scopeType, scopeId, userId = null, conversationId =
   ).lean();
 }
 
+/**
+ * WHY: Recomputes cached or derived state when it can become stale.
+ * WHAT: Implements refresh conversation insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function refreshConversationInsight(userId, conversationId, modelId = null) {
   const conversation = await Conversation.findOne({ _id: conversationId, userId }).lean();
   if (!conversation) {
@@ -133,6 +166,11 @@ async function refreshConversationInsight(userId, conversationId, modelId = null
   });
 }
 
+/**
+ * WHY: Recomputes cached or derived state when it can become stale.
+ * WHAT: Implements refresh room insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function refreshRoomInsight(roomId, modelId = null) {
   const messages = await Message.find({ roomId })
     .sort({ createdAt: -1 })
@@ -160,6 +198,11 @@ async function refreshRoomInsight(roomId, modelId = null) {
   });
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get conversation insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function getConversationInsight(userId, conversationId, modelId = null) {
   const existing = await ConversationInsight.findOne({
     scopeKey: buildScopeKey('conversation', conversationId, userId),
@@ -172,6 +215,11 @@ async function getConversationInsight(userId, conversationId, modelId = null) {
   return refreshConversationInsight(userId, conversationId, modelId);
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get room insight for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function getRoomInsight(roomId, modelId = null) {
   const existing = await ConversationInsight.findOne({
     scopeKey: buildScopeKey('room', roomId),

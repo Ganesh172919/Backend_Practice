@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for room messages, edits, reactions, and attachment metadata.
+ * WHY: Captures full chat lifecycle state in a single canonical message document.
+ * WHAT: Defines sender metadata, content, reaction map, status, file fields, and AI metadata.
+ * HOW: Uses mongoose subdocuments/maps for mutable message state with timestamps.
+ */
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({

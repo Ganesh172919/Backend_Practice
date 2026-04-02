@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for tracking import progress and results.
+ * WHY: Makes long-running import operations observable and auditable.
+ * WHAT: Stores source metadata, status, preview details, and imported record IDs.
+ * HOW: Services update lifecycle fields as parsing and persistence stages complete.
+ */
 const mongoose = require('mongoose');
 
 const importSessionSchema = new mongoose.Schema({

@@ -1,7 +1,18 @@
+/**
+ * File Overview: Memory extraction, scoring, and retrieval service.
+ * WHY: Provides long-term personalization context to improve AI response relevance.
+ * WHAT: Extracts deterministic/AI memories, deduplicates entries, scores candidates, and returns relevant memories.
+ * HOW: Normalizes text, computes fingerprints, applies weighted scoring, and tracks usage metrics.
+ */
 const crypto = require('crypto');
 const MemoryEntry = require('../models/MemoryEntry');
 const { getJsonFromModel } = require('./gemini');
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize text for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeText(text) {
   return String(text || '')
     .toLowerCase()
@@ -10,16 +21,31 @@ function normalizeText(text) {
     .trim();
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements tokenize for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function tokenize(text) {
   return normalizeText(text)
     .split(' ')
     .filter((token) => token.length > 2);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements unique strings for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function uniqueStrings(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements clamp score for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function clampScore(value, fallback) {
   const parsed = Number(value);
   if (Number.isFinite(parsed)) {
@@ -28,10 +54,20 @@ function clampScore(value, fallback) {
   return fallback;
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build fingerprint for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildFingerprint(summary) {
   return crypto.createHash('sha1').update(normalizeText(summary)).digest('hex');
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract deterministic memories for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function extractDeterministicMemories(text) {
   const rawText = String(text || '').trim();
   if (!rawText) {
@@ -99,6 +135,11 @@ function extractDeterministicMemories(text) {
     .filter(Boolean);
 }
 
+/**
+ * WHY: Converts unstructured input into structured signals for later pipeline stages.
+ * WHAT: Implements extract ai memories for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function extractAiMemories(text) {
   const prompt = [
     'Return JSON only.',
@@ -112,13 +153,20 @@ async function extractAiMemories(text) {
   return Array.isArray(result.items) ? result.items : [];
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build memory candidates for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function buildMemoryCandidates(text) {
   const deterministic = extractDeterministicMemories(text);
   let aiCandidates = [];
 
   try {
+    // AI extraction broadens coverage beyond regex patterns (preferences, intent, long facts).
     aiCandidates = await extractAiMemories(text);
   } catch (error) {
+    // Memory extraction should never block chat flow; fallback to deterministic-only candidates.
     aiCandidates = [];
   }
 
@@ -133,6 +181,11 @@ async function buildMemoryCandidates(text) {
     .filter((item) => item.summary.length >= 6);
 }
 
+/**
+ * WHY: Calculates derived values that drive ranking or decision logic.
+ * WHAT: Implements compute recency score for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function computeRecencyScore(dateValue) {
   const observed = new Date(dateValue || Date.now());
   const ageDays = Math.max(0, (Date.now() - observed.getTime()) / (1000 * 60 * 60 * 24));
@@ -143,6 +196,11 @@ function computeRecencyScore(dateValue) {
   return 0.25;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements upsert memory entries for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function upsertMemoryEntries({
   userId,
   text,
@@ -164,6 +222,7 @@ async function upsertMemoryEntries({
     const existing = await MemoryEntry.findOne({ userId, fingerprint });
 
     if (existing) {
+      // Merge strategy keeps strongest confidence/importance while refreshing recency.
       existing.summary = candidate.summary;
       existing.details = candidate.details || existing.details;
       existing.tags = uniqueStrings([...(existing.tags || []), ...candidate.tags]);
@@ -203,6 +262,11 @@ async function upsertMemoryEntries({
   return savedEntries;
 }
 
+/**
+ * WHY: Calculates derived values that drive ranking or decision logic.
+ * WHAT: Implements score memory for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function scoreMemory(entry, queryTokens) {
   const entryTokens = tokenize([entry.summary, entry.details, ...(entry.tags || [])].join(' '));
   const overlap = entryTokens.filter((token) => queryTokens.has(token)).length;
@@ -210,6 +274,8 @@ function scoreMemory(entry, queryTokens) {
   const recency = computeRecencyScore(entry.lastObservedAt || entry.updatedAt);
   const pinnedBonus = entry.pinned ? 0.15 : 0;
 
+  // Weighted ranking favors textual relevance, then long-term usefulness and confidence.
+  // usageCount contributes gently to avoid popularity overpowering semantic match.
   return (
     textScore * 0.45 +
     entry.importanceScore * 0.2 +
@@ -220,6 +286,11 @@ function scoreMemory(entry, queryTokens) {
   );
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements retrieve relevant memories for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function retrieveRelevantMemories({ userId, query, limit = 5 }) {
   const entries = await MemoryEntry.find({ userId })
     .sort({ pinned: -1, updatedAt: -1 })
@@ -237,6 +308,11 @@ async function retrieveRelevantMemories({ userId, query, limit = 5 }) {
     .slice(0, limit);
 }
 
+/**
+ * WHY: Records lifecycle state transitions required for analytics and correctness.
+ * WHAT: Implements mark memories used for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function markMemoriesUsed(memoryEntries = []) {
   const ids = memoryEntries.map((entry) => entry._id || entry.id).filter(Boolean);
   if (ids.length === 0) {

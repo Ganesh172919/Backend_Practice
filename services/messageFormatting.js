@@ -1,5 +1,16 @@
+/**
+ * File Overview: Message payload formatter and attachment validator.
+ * WHY: Ensures consistent outbound message shape across REST and Socket.IO APIs.
+ * WHAT: Formats message objects, memory references, and validates attachment fields.
+ * HOW: Normalizes document fields/maps and enforces upload type/size constraints.
+ */
 const { ALLOWED_TYPES, MAX_FILE_SIZE } = require('../middleware/upload');
 
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format memory refs for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatMemoryRefs(memoryRefs = []) {
   return memoryRefs.map((entry) => ({
     id: String(entry.id),
@@ -8,6 +19,11 @@ function formatMemoryRefs(memoryRefs = []) {
   }));
 }
 
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format message for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatMessage(message) {
   return {
     id: message._id.toString(),
@@ -34,6 +50,11 @@ function formatMessage(message) {
   };
 }
 
+/**
+ * WHY: Prevents invalid data from propagating into deeper business logic.
+ * WHAT: Implements validate attachment payload for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function validateAttachmentPayload({ fileUrl, fileName, fileType, fileSize }) {
   const hasAnyFileField = fileUrl || fileName || fileType || fileSize;
   if (!hasAnyFileField) {

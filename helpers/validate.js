@@ -1,36 +1,77 @@
+/**
+ * File Overview: Shared validators for IDs, room roles, and block relationships.
+ * WHY: Prevents duplicated authorization and shape checks across routes/sockets.
+ * WHAT: Exports membership, role, and object-id utility helpers.
+ * HOW: Uses small deterministic predicates over Mongo IDs and room member arrays.
+ */
 const mongoose = require('mongoose');
 
 // Check if a string is a valid MongoDB ObjectId
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is valid object id for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === String(id);
 }
 
 // Trim and cap a string's length
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements sanitize string for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function sanitizeString(str, maxLen = 500) {
   if (typeof str !== 'string') return '';
   return str.trim().slice(0, maxLen);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements escape regex for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function escapeRegex(str) {
   if (typeof str !== 'string') return '';
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Return array of missing field names from an object
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements require fields for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function requireFields(obj, fields) {
   return fields.filter(f => obj[f] === undefined || obj[f] === null || obj[f] === '');
 }
 
 // Check if user is a member of a room (returns the member entry or null)
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements find room member for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function findRoomMember(room, userId) {
   if (!room || !room.members) return null;
   return room.members.find(m => m.userId.toString() === userId.toString()) || null;
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is room creator for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isRoomCreator(room, userId) {
   return Boolean(room?.creatorId && room.creatorId.toString() === userId.toString());
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get room member role for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getRoomMemberRole(room, userId) {
   if (isRoomCreator(room, userId)) {
     return 'creator';
@@ -40,6 +81,11 @@ function getRoomMemberRole(room, userId) {
   return member ? member.role : null;
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements has room role for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function hasRoomRole(room, userId, roles = []) {
   if (isRoomCreator(room, userId)) {
     return true;
@@ -49,6 +95,11 @@ function hasRoomRole(room, userId, roles = []) {
   return Boolean(member && roles.includes(member.role));
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements can manage room member for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function canManageRoomMember(room, actorId, targetId) {
   if (!room || actorId.toString() === targetId.toString()) {
     return false;
@@ -77,6 +128,11 @@ function canManageRoomMember(room, actorId, targetId) {
 }
 
 // Check if userId is in the user's blocked list
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is blocked by for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isBlockedBy(blockerUser, targetUserId) {
   if (!blockerUser || !blockerUser.blockedUsers) return false;
   return blockerUser.blockedUsers.some(id => id.toString() === targetUserId.toString());

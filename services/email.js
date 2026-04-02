@@ -1,3 +1,9 @@
+/**
+ * File Overview: Password-reset email delivery helper.
+ * WHY: Decouples SMTP operations from auth route logic.
+ * WHAT: Creates transporter from env config and sends reset email content.
+ * HOW: Uses nodemailer when configured, otherwise logs fallback reset URLs for development.
+ */
 const nodemailer = require('nodemailer');
 
 // Create transporter — uses SMTP if configured, otherwise logs to console

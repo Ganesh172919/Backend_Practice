@@ -1,13 +1,29 @@
+/**
+ * File Overview: Structured logging helpers with sensitive value redaction.
+ * WHY: Improves observability while avoiding accidental credential leakage.
+ * WHAT: Normalizes context payloads, truncates noisy values, and serializes errors.
+ * HOW: Transforms nested values, masks known secret keys, and emits consistent log records.
+ */
 const crypto = require('crypto');
 
 const SENSITIVE_KEY_PATTERN = /pass(word)?|access[-_]?token|refresh[-_]?token|api[-_]?key|client[-_]?secret|authorization|cookie|session|oauth[-_]?code|auth[-_]?code|secret/i;
 const DEFAULT_MAX_STRING = 160;
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements truncate for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function truncate(value, maxLength = DEFAULT_MAX_STRING) {
   const text = String(value ?? '');
   return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements sanitize value for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function sanitizeValue(value, depth = 0) {
   if (value == null) {
     return value;
@@ -47,6 +63,11 @@ function sanitizeValue(value, depth = 0) {
   return truncate(value);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements serialize context for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function serializeContext(context = {}) {
   const sanitized = sanitizeValue(context);
   const entries = Object.entries(sanitized || {}).filter(([, value]) => value !== undefined);
@@ -60,6 +81,11 @@ function serializeContext(context = {}) {
     .join(' ');
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements write log for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function writeLog(level, event, message = '', context = {}) {
   const timestamp = new Date().toISOString();
   const contextString = serializeContext(context);
@@ -91,6 +117,11 @@ function writeLog(level, event, message = '', context = {}) {
   console.log(output);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements serialize error for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function serializeError(error) {
   if (!error) {
     return null;
@@ -107,6 +138,11 @@ function serializeError(error) {
   };
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build body summary for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildBodySummary(body) {
   if (!body || typeof body !== 'object') {
     return null;
@@ -151,6 +187,11 @@ function buildBodySummary(body) {
   return summary;
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build request summary for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildRequestSummary(req) {
   return {
     requestId: req.requestId || null,
@@ -161,10 +202,20 @@ function buildRequestSummary(req) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements create request id for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function createRequestId() {
   return crypto.randomUUID().slice(0, 8);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements child for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function child(baseContext = {}) {
   return {
     info(event, message, context = {}) {

@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for in-room polling and voting.
+ * WHY: Supports group decision workflows inside chat rooms.
+ * WHAT: Stores poll question/options, votes, ownership, and closure state.
+ * HOW: Tracks per-option votes and temporal constraints for vote eligibility.
+ */
 const mongoose = require('mongoose');
 
 const pollSchema = new mongoose.Schema({

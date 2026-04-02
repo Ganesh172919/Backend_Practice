@@ -1,3 +1,9 @@
+/**
+ * File Overview: Google OAuth strategy and passport serialization config.
+ * WHY: Keeps third-party identity configuration isolated from endpoint handlers.
+ * WHAT: Registers Google strategy plus serialize/deserialize behavior.
+ * HOW: Maps provider profile data into local user records and user session identity.
+ */
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');

@@ -37,6 +37,7 @@ This documentation set explains the AI-specific backend behavior in `backend/` a
 11. `docs/ai/36-inconsistencies-and-code-drift.md`
 12. `docs/ai/38-how-to-rebuild-this-architecture.md`
 13. `docs/ai/39-improvement-roadmap.md`
+14. `docs/ai/40-production-system-deep-dive.md`
 
 ## AI Feature Map
 
@@ -95,6 +96,7 @@ This documentation set explains the AI-specific backend behavior in `backend/` a
 | `docs/ai/37-design-review-questions-and-answers.md` | Exactly 10 evaluator Q&A items |
 | `docs/ai/38-how-to-rebuild-this-architecture.md` | Rebuild guide |
 | `docs/ai/39-improvement-roadmap.md` | Prioritized next steps |
+| `docs/ai/40-production-system-deep-dive.md` | End-to-end production deep-dive with architecture, API inventory, AI flow analysis, and file/function catalog |
 
 ## Glossary
 

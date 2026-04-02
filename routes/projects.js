@@ -1,3 +1,9 @@
+/**
+ * File Overview: Project CRUD routes for reusable AI context.
+ * WHY: Allows users to define project context that can steer multiple conversations.
+ * WHAT: Exposes project listing, create/update, detail, and stats-oriented responses.
+ * HOW: Normalizes input fields, enforces ownership, and computes derived usage data.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Project = require('../models/Project');
@@ -6,12 +12,22 @@ const { validateAttachmentPayload } = require('../services/messageFormatting');
 
 const router = express.Router();
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize string for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeString(value, maxLength = 1000) {
   return String(value || '')
     .trim()
     .slice(0, maxLength);
 }
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize string array for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeStringArray(values, maxItems, maxLength) {
   if (!Array.isArray(values)) {
     return [];
@@ -24,6 +40,11 @@ function normalizeStringArray(values, maxItems, maxLength) {
   )).slice(0, maxItems);
 }
 
+/**
+ * WHY: Ensures downstream logic receives canonicalized and predictable values.
+ * WHAT: Implements normalize files for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function normalizeFiles(files) {
   if (!Array.isArray(files)) {
     return [];
@@ -41,6 +62,11 @@ function normalizeFiles(files) {
     .filter((file) => !validateAttachmentPayload(file));
 }
 
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format project for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatProject(project, stats = {}) {
   return {
     id: project._id.toString(),
@@ -68,6 +94,11 @@ function formatProject(project, stats = {}) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements load project stats for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function loadProjectStats(userId, projectIds) {
   if (!Array.isArray(projectIds) || projectIds.length === 0) {
     return new Map();

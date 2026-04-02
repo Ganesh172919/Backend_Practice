@@ -1,3 +1,9 @@
+/**
+ * File Overview: User profile routes.
+ * WHY: Lets authenticated users update profile information consumed across chat UI.
+ * WHAT: Handles profile edits and basic profile retrieval.
+ * HOW: Validates field limits, updates allowed fields, and persists user changes.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const User = require('../models/User');

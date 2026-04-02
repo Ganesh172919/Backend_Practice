@@ -1,3 +1,9 @@
+/**
+ * File Overview: User dashboard summary endpoint.
+ * WHY: Provides a compact API for recent activity cards and counters.
+ * WHAT: Aggregates conversation, room, and message statistics for the authenticated user.
+ * HOW: Runs parallel queries and returns normalized dashboard payload fields.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Message = require('../models/Message');

@@ -1,3 +1,9 @@
+/**
+ * File Overview: Prompt template catalog and interpolation utilities.
+ * WHY: Centralizes reusable prompts and allows runtime admin overrides.
+ * WHAT: Defines default templates, resolves active overrides, and interpolates dynamic placeholders.
+ * HOW: Fetches prompt template records by key and merges with defaults at generation time.
+ */
 const PromptTemplate = require('../models/PromptTemplate');
 
 const DEFAULT_PROMPTS = {
@@ -50,6 +56,11 @@ Keep actionItems as an array of objects with text and owner when known.`,
   },
 };
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements interpolate prompt for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function interpolatePrompt(content, variables = {}) {
   return String(content || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key) => {
     const value = variables[key];
@@ -57,6 +68,11 @@ function interpolatePrompt(content, variables = {}) {
   });
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build initial room history for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildInitialRoomHistory(roomName) {
   const prompt = interpolatePrompt(DEFAULT_PROMPTS['group-chat'].content, {
     roomName: roomName || 'ChatSphere room',
@@ -74,6 +90,11 @@ function buildInitialRoomHistory(roomName) {
   ];
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get prompt template for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function getPromptTemplate(key) {
   const saved = await PromptTemplate.findOne({ key, isActive: true }).lean();
   if (saved) {
@@ -96,6 +117,11 @@ async function getPromptTemplate(key) {
     : null;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements list prompt templates for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function listPromptTemplates() {
   const rows = await PromptTemplate.find({ isActive: true }).lean();
   const merged = Object.keys(DEFAULT_PROMPTS).map((key) => {
@@ -124,6 +150,11 @@ async function listPromptTemplates() {
   return merged;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements upsert prompt template for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function upsertPromptTemplate(key, payload) {
   return PromptTemplate.findOneAndUpdate(
     { key },

@@ -1,3 +1,9 @@
+/**
+ * File Overview: Application bootstrap and real-time socket gateway for ChatSphere.
+ * WHY: Centralizes startup wiring so REST, Socket.IO, and shared services are initialized in one place.
+ * WHAT: Creates the HTTP server, registers middleware/routes, and handles room chat plus AI socket events.
+ * HOW: Combines auth checks, validation utilities, service calls, and broadcast logic per socket event.
+ */
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -149,6 +155,11 @@ const socketFlood = new Map();
 const FLOOD_MAX = 30;       // max events per window
 const FLOOD_WINDOW = 10000; // 10 seconds
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements check flood for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function checkFlood(socketId) {
   const now = Date.now();
   let entry = socketFlood.get(socketId);
@@ -161,32 +172,62 @@ function checkFlood(socketId) {
   return entry.count > FLOOD_MAX;
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get ack for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getAck(callback) {
   return typeof callback === 'function' ? callback : () => {};
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements emit socket error for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function emitSocketError(socket, ack, error, details = {}) {
   const payload = { success: false, error, ...details };
   socket.emit('error_message', payload);
   ack(payload);
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is flooded for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isFlooded(socket, ack) {
   if (!checkFlood(socket.id)) return false;
   emitSocketError(socket, ack, 'Too many actions in a short time. Please slow down.');
   return true;
 }
 
+/**
+ * WHY: Keeps retrieval logic centralized so callers do not duplicate query behavior.
+ * WHAT: Implements get room online users for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function getRoomOnlineUsers(roomId) {
   const users = roomUsers.get(roomId);
   if (!users) return [];
   return Array.from(users.values());
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements is socket in room for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function isSocketInRoom(roomId, socketId) {
   return Boolean(roomUsers.get(roomId)?.has(socketId));
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements add user to room for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function addUserToRoom(roomId, socketId, user) {
   if (!roomUsers.has(roomId)) {
     roomUsers.set(roomId, new Map());
@@ -194,6 +235,11 @@ function addUserToRoom(roomId, socketId, user) {
   roomUsers.get(roomId).set(socketId, { id: user.id, username: user.username });
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements remove user from room for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function removeUserFromRoom(roomId, socketId) {
   const users = roomUsers.get(roomId);
   if (users) {
@@ -207,6 +253,11 @@ function removeUserFromRoom(roomId, socketId) {
   return null;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements remove user from all rooms for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function removeUserFromAllRooms(socketId) {
   const leftRooms = [];
   for (const [roomId, users] of roomUsers.entries()) {
@@ -223,6 +274,11 @@ function removeUserFromAllRooms(socketId) {
 }
 
 // Clear typing state for a user in a room
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements clear typing for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function clearTyping(roomId, userId) {
   const roomTyping = typingUsers.get(roomId);
   if (roomTyping) {
@@ -238,6 +294,11 @@ function clearTyping(roomId, userId) {
 }
 
 // Format a message document for client consumption
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format message for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatMessage(msg) {
   return {
     id: msg._id.toString(),
@@ -264,6 +325,11 @@ function formatMessage(msg) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements load room for member for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function loadRoomForMember(roomId, userId, projection = 'members creatorId maxUsers aiHistory name') {
   if (!isValidObjectId(roomId)) {
     return { room: null, error: 'Invalid room ID' };
@@ -281,10 +347,20 @@ async function loadRoomForMember(roomId, userId, projection = 'members creatorId
   return { room, error: null };
 }
 
+/**
+ * WHY: Prevents invalid data from propagating into deeper business logic.
+ * WHAT: Implements validate attachment payload for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function validateAttachmentPayload({ fileUrl, fileName, fileType, fileSize }) {
   return sharedValidateAttachmentPayload({ fileUrl, fileName, fileType, fileSize });
 }
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements has blocking relationship for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function hasBlockingRelationship(userId, otherUserId) {
   if (!isValidObjectId(userId) || !isValidObjectId(otherUserId)) {
     return false;
@@ -301,6 +377,11 @@ async function hasBlockingRelationship(userId, otherUserId) {
   return userBlocked || otherUserBlocked;
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements maybe mark message delivered for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function maybeMarkMessageDelivered(message, roomId) {
   const otherUsersOnline = getRoomOnlineUsers(roomId).some((user) => user.id !== message.userId);
   if (!otherUsersOnline || message.status !== 'sent') {
@@ -723,6 +804,7 @@ io.on('connection', async (socket) => {
     const attachmentError = validateAttachmentPayload(attachment || {});
     if (attachmentError) return emitSocketError(socket, ack, attachmentError);
 
+    // Broadcast transient thinking state so clients can render room-level AI typing indicators.
     io.to(roomId).emit('ai_thinking', { roomId, status: true });
 
     try {
@@ -743,6 +825,7 @@ io.on('connection', async (socket) => {
         return emitSocketError(socket, ack, 'Join the room before using AI');
       }
 
+      // Run retrieval in parallel because both branches are independent read operations.
       const [memoryEntries, insight] = await Promise.all([
         retrieveRelevantMemories({
           userId: socket.user.id,
@@ -773,7 +856,7 @@ io.on('connection', async (socket) => {
       room.aiHistory.push({ role: 'user', parts: [{ text: `[${socket.user.username} asks]: ${prompt.trim()}` }] });
       room.aiHistory.push({ role: 'model', parts: [{ text: response.content }] });
 
-      // Trim AI history to last 40 entries + system prompt
+      // Keep initial seed/system turns and retain the most recent conversational window.
       if (room.aiHistory.length > 42) {
         room.aiHistory = [room.aiHistory[0], room.aiHistory[1], ...room.aiHistory.slice(-38)];
       }
@@ -802,6 +885,7 @@ io.on('connection', async (socket) => {
       await refreshRoomInsight(roomId);
 
       console.log(`✦ [AI] Room response ready from ${response.model.id} via ${response.model.provider} (${response.content.length} chars)`);
+      // Clear thinking indicator before final broadcast so UI state does not linger.
       io.to(roomId).emit('ai_thinking', { roomId, status: false });
       const aiMessage = formatMessage(aiMsg);
       io.to(roomId).emit('ai_response', aiMessage);
@@ -1085,6 +1169,11 @@ io.on('connection', async (socket) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements start server for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function startServer() {
   await connectDB();
   await refreshModelCatalogs().catch(() => {});
@@ -1095,11 +1184,21 @@ async function startServer() {
   }, {});
 
   await new Promise((resolve, reject) => {
+    /**
+     * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+     * WHAT: Implements handle error for this module.
+     * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+     */
     const handleError = (error) => {
       server.off('listening', handleListening);
       reject(error);
     };
 
+    /**
+     * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+     * WHAT: Implements handle listening for this module.
+     * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+     */
     const handleListening = () => {
       server.off('error', handleError);
       resolve();

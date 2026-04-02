@@ -1,3 +1,9 @@
+/**
+ * File Overview: Primary user identity, profile, and preference schema.
+ * WHY: Centralizes account data, feature toggles, and relationship controls.
+ * WHAT: Stores local/OAuth credentials, profile fields, AI settings, admin flag, and block list.
+ * HOW: Uses schema hooks/methods for password handling and default preference initialization.
+ */
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 

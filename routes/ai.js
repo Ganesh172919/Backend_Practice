@@ -1,3 +1,9 @@
+/**
+ * File Overview: AI utility and model discovery endpoints.
+ * WHY: Offers HTTP access to model lists and helper AI capabilities.
+ * WHAT: Implements endpoints for models, smart replies, sentiment, and grammar assistance.
+ * HOW: Validates payloads, applies quota/preferences, and delegates generation to AI services.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const aiQuotaMiddleware = require('../middleware/aiQuota');
@@ -15,12 +21,22 @@ const logger = require('../helpers/logger');
 
 const router = express.Router();
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements load ai preferences for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function loadAiPreferences(userId) {
   return User.findById(userId)
     .select('settings.aiFeatures.smartReplies settings.aiFeatures.sentimentAnalysis settings.aiFeatures.grammarCheck')
     .lean();
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build smart reply fallback for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildSmartReplyFallback(messages) {
   const lastMessage = messages[messages.length - 1]?.content || '';
   if (/\?$/.test(lastMessage.trim())) {

@@ -1,3 +1,9 @@
+/**
+ * File Overview: User memory CRUD and import/export routes.
+ * WHY: Allows memory curation and transfer for AI personalization continuity.
+ * WHAT: Implements memory search/list/update/delete plus import preview and export actions.
+ * HOW: Coordinates memory model filters with import/export service pipelines.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const MemoryEntry = require('../models/MemoryEntry');

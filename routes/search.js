@@ -1,3 +1,9 @@
+/**
+ * File Overview: Search routes for messages and conversations.
+ * WHY: Improves discoverability of prior chat context with safe access boundaries.
+ * WHAT: Provides filterable, paginated search over messages and direct conversations.
+ * HOW: Constructs scoped Mongo queries based on user membership and optional filters.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Message = require('../models/Message');

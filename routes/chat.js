@@ -1,3 +1,9 @@
+/**
+ * File Overview: Solo AI chat endpoint and conversation persistence flow.
+ * WHY: Implements direct user-to-assistant interactions with context enrichment.
+ * WHAT: Validates chat input, retrieves memory/insight/project context, calls AI, and stores turns.
+ * HOW: Orchestrates service calls for quota, model routing, fallback handling, and post-save insight refresh.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const aiQuotaMiddleware = require('../middleware/aiQuota');
@@ -26,6 +32,7 @@ router.post('/', authMiddleware, aiQuotaMiddleware, async (req, res) => {
     }
 
     const chatHistory = Array.isArray(history) ? history : [];
+    // Context injection happens before model call so generation can use memory + latest insight.
     const memoryEntries = await retrieveRelevantMemories({
       userId: req.user.id,
       query: message.trim(),
@@ -62,6 +69,7 @@ router.post('/', authMiddleware, aiQuotaMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Conversation belongs to a different project' });
     }
 
+    // sendMessage encapsulates prompt assembly, model routing, and provider fallback handling.
     const response = await sendMessage(chatHistory, message.trim(), {
       memoryEntries,
       insight: existingInsight,
@@ -117,6 +125,7 @@ router.post('/', authMiddleware, aiQuotaMiddleware, async (req, res) => {
     });
 
     await conversation.save();
+    // These side effects enrich future requests but should not alter the current AI response payload.
     await Promise.all([
       upsertMemoryEntries({
         userId: req.user.id,
@@ -167,6 +176,7 @@ router.post('/', authMiddleware, aiQuotaMiddleware, async (req, res) => {
     });
 
     const statusCode = err?.statusCode === 429 ? 429 : String(err?.code || '').startsWith('AI_') ? 503 : 500;
+    // Keep transport contract stable: rate limits stay 429; provider-layer failures map to 503.
     const errorMessage = statusCode === 429
       ? 'The selected AI provider is rate-limited right now. Please retry in a moment.'
       : statusCode === 503

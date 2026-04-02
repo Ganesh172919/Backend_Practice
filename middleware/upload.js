@@ -1,3 +1,9 @@
+/**
+ * File Overview: Multer upload configuration and file safety rules.
+ * WHY: Ensures chat attachments are type/size validated before persistence.
+ * WHAT: Defines allowed MIME types, file size cap, storage path, and filename policy.
+ * HOW: Uses multer storage callbacks and file filters to reject unsupported payloads.
+ */
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
@@ -41,6 +47,11 @@ const storage = multer.diskStorage({
   },
 });
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements file filter for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 const fileFilter = (req, file, cb) => {
   if (ALLOWED_TYPES[file.mimetype]) {
     cb(null, true);

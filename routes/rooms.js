@@ -1,3 +1,9 @@
+/**
+ * File Overview: Room lifecycle and membership routes.
+ * WHY: Backs collaborative room management used by socket chat flows.
+ * WHAT: Creates rooms, handles join/leave, and returns room-centric metadata and insights.
+ * HOW: Uses validation helpers and member-role checks before room mutations.
+ */
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
 const Room = require('../models/Room');
@@ -13,6 +19,11 @@ const { formatMessage } = require('../services/messageFormatting');
 
 const router = express.Router();
 
+/**
+ * WHY: Produces API-safe output shape used by clients and transports.
+ * WHAT: Implements format room summary for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function formatRoomSummary(room, currentUserId, messageCount = 0) {
   return {
     id: room._id.toString(),
@@ -29,6 +40,11 @@ function formatRoomSummary(room, currentUserId, messageCount = 0) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements ensure room member for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function ensureRoomMember(roomId, userId, selection = 'name description tags maxUsers members creatorId createdAt') {
   if (!isValidObjectId(roomId)) {
     return { room: null, error: { status: 400, message: 'Invalid room ID' } };

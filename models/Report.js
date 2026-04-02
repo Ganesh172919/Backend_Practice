@@ -1,3 +1,9 @@
+/**
+ * File Overview: Schema for moderation reports and review outcomes.
+ * WHY: Creates an auditable workflow for user safety escalations.
+ * WHAT: Stores reporter, target type/id, reason, status, and reviewer notes.
+ * HOW: Moderation and admin routes create and transition report states.
+ */
 const mongoose = require('mongoose');
 
 const reportSchema = new mongoose.Schema({

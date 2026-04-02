@@ -1,3 +1,9 @@
+/**
+ * File Overview: Attachment upload and file-serving routes.
+ * WHY: Supports file sharing while enforcing upload and path safety rules.
+ * WHAT: Accepts authenticated uploads and serves stored files by filename.
+ * HOW: Invokes upload middleware and rejects path traversal patterns before sendFile.
+ */
 const express = require('express');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');

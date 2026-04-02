@@ -1,3 +1,9 @@
+/**
+ * File Overview: Import/export pipeline for conversations and memory.
+ * WHY: Supports migration from external tools and user-controlled data portability.
+ * WHAT: Parses imported formats, previews bundles, writes records, and generates export payloads.
+ * HOW: Runs parser detection cascade, fingerprints content for deduplication, and updates import session state.
+ */
 const crypto = require('crypto');
 const Conversation = require('../models/Conversation');
 const ConversationInsight = require('../models/ConversationInsight');
@@ -6,10 +12,20 @@ const MemoryEntry = require('../models/MemoryEntry');
 const { buildMemoryCandidates, upsertMemoryEntries } = require('./memory');
 const { refreshConversationInsight } = require('./conversationInsights');
 
+/**
+ * WHY: Centralizes boolean policy checks so access logic remains consistent.
+ * WHAT: Implements hash content for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function hashContent(content) {
   return crypto.createHash('sha1').update(String(content || '')).digest('hex');
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements to message for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function toMessage(role, content, timestamp = null) {
   return {
     role: role === 'assistant' ? 'assistant' : 'user',
@@ -18,6 +34,11 @@ function toMessage(role, content, timestamp = null) {
   };
 }
 
+/**
+ * WHY: Transforms loosely structured text or payloads into validated structures.
+ * WHAT: Implements parse chat gpt json for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function parseChatGptJson(raw) {
   const parsed = JSON.parse(raw);
   const rows = Array.isArray(parsed) ? parsed : Array.isArray(parsed.conversations) ? parsed.conversations : [];
@@ -55,6 +76,11 @@ function parseChatGptJson(raw) {
     .filter((entry) => entry && entry.messages.length > 0);
 }
 
+/**
+ * WHY: Transforms loosely structured text or payloads into validated structures.
+ * WHAT: Implements parse claude source for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function parseClaudeSource(raw) {
   try {
     const parsed = JSON.parse(raw);
@@ -92,6 +118,11 @@ function parseClaudeSource(raw) {
   }
 }
 
+/**
+ * WHY: Transforms loosely structured text or payloads into validated structures.
+ * WHAT: Implements parse generic markdown for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function parseGenericMarkdown(raw) {
   const blocks = raw
     .split(/\n(?=#|\bUser:|\bAssistant:)/)
@@ -129,6 +160,11 @@ function parseGenericMarkdown(raw) {
   }].filter((entry) => entry.messages.length > 0);
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements detect and parse import for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function detectAndParseImport(content, filename = '') {
   const safeName = String(filename || '').toLowerCase();
   const errors = [];
@@ -163,6 +199,11 @@ function detectAndParseImport(content, filename = '') {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements preview import for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function previewImport(content, filename) {
   const parsed = detectAndParseImport(content, filename);
   const candidateMemories = [];
@@ -189,6 +230,11 @@ async function previewImport(content, filename) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements import conversation bundle for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function importConversationBundle({ userId, content, filename }) {
   const fingerprint = hashContent(content);
   const existingSession = await ImportSession.findOne({
@@ -295,6 +341,11 @@ async function importConversationBundle({ userId, content, filename }) {
   };
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build markdown export for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildMarkdownExport({ conversations, insights, memories }) {
   const lines = ['# ChatSphere Export', '', '## Memories', ''];
   memories.forEach((memory) => {
@@ -318,6 +369,11 @@ function buildMarkdownExport({ conversations, insights, memories }) {
   return lines.join('\n');
 }
 
+/**
+ * WHY: Keeps payload construction reusable and consistent across call sites.
+ * WHAT: Implements build adapter export for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 function buildAdapterExport({ conversations, insights, memories }) {
   return {
     provider: 'generic-llm-adapter',
@@ -337,6 +393,11 @@ function buildAdapterExport({ conversations, insights, memories }) {
   };
 }
 
+/**
+ * WHY: Keeps this module easier to reason about by isolating one responsibility per function.
+ * WHAT: Implements export user bundle for this module.
+ * HOW: Uses validated inputs plus module state and returns normalized output or throws on unrecoverable errors.
+ */
 async function exportUserBundle({ userId, format = 'normalized' }) {
   const [conversations, insights, memories] = await Promise.all([
     Conversation.find({ userId }).sort({ updatedAt: -1 }).lean(),
